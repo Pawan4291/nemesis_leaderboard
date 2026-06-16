@@ -1,7 +1,7 @@
 const NEMESI_CA = '0x534a29dfca1cefb6e933f6c0d00e8a43a52e60d2';
-const ROUTER   = '0x5b23F24b08fa3FAa0Fa555611ACF74c3bAb23550';
-const LIQUIDITY= '0x5150911745CbFCC3dAF22c46d8D9694343d2b768';
-const BASE     = 'https://api-sepolia.etherscan.io/api';
+const ROUTER    = '0x5b23F24b08fa3FAa0Fa555611ACF74c3bAb23550';
+const LIQUIDITY = '0x5150911745CbFCC3dAF22c46d8D9694343d2b768';
+const BASE      = 'https://api-sepolia.etherscan.io/api';
 
 let cache = null, cacheTime = 0;
 
@@ -22,16 +22,28 @@ async function fetchAllPages(params) {
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  const now = Date.now();
-  if (cache && now - cacheTime < 5 * 60 * 1000) return res.json({ ...cache, cached: true });
 
   const key = process.env.ETHERSCAN_API_KEY || '';
   if (!key) return res.status(500).json({ error: 'Missing ETHERSCAN_API_KEY' });
 
+  // DEBUG - always runs before cache
+  if (req.query.debug === '1') {
+    const qs = new URLSearchParams({ module: 'account', action: 'tokentx', contractaddress: NEMESI_CA, address: ROUTER, page: 1, offset: 5, sort: 'asc', apikey: key });
+    const r = await fetch(`${BASE}?${qs}`);
+    const json = await r.json();
+    return res.json(json);
+  }
+
+  // CACHE BUST - clears bad cached empty data
+  if (req.query.bust === '1') { cache = null; cacheTime = 0; }
+
+  const now = Date.now();
+  if (cache && now - cacheTime < 5 * 60 * 1000) return res.json({ ...cache, cached: true });
+
   try {
     const [tokenTxs, liquidityTxs] = await Promise.all([
       fetchAllPages({ module: 'account', action: 'tokentx', contractaddress: NEMESI_CA, address: ROUTER, apikey: key }),
-      fetchAllPages({ module: 'account', action: 'txlist',  address: LIQUIDITY, apikey: key })
+      fetchAllPages({ module: 'account', action: 'txlist', address: LIQUIDITY, apikey: key })
     ]);
 
     const traders = {};
@@ -40,9 +52,7 @@ module.exports = async function handler(req, res) {
     for (const tx of tokenTxs) {
       const from = tx.from.toLowerCase();
       const to   = tx.to.toLowerCase();
-      // Only count user→router direction to avoid double counting
       if (to !== router || from === router) continue;
-
       const val = parseFloat(tx.value) / 1e6;
       const ts  = parseInt(tx.timeStamp);
       if (!traders[from]) traders[from] = { address: from, volume: 0, swaps: 0, liquidity: 0, lastSwap: 0, firstSwap: Infinity };
