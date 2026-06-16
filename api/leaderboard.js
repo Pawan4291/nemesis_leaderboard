@@ -53,7 +53,7 @@ module.exports = async function handler(req, res) {
       const from = tx.from.toLowerCase();
       const to   = tx.to.toLowerCase();
       if (to !== router || from === router) continue;
-      const val = parseFloat(tx.value) / 1e6;
+     const val = parseFloat(tx.value) / Math.pow(10, parseInt(tx.tokenDecimal));
       const ts  = parseInt(tx.timeStamp);
       if (!traders[from]) traders[from] = { address: from, volume: 0, swaps: 0, liquidity: 0, lastSwap: 0, firstSwap: Infinity };
       traders[from].volume += val;
