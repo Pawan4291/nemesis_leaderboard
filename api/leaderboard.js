@@ -44,11 +44,14 @@ module.exports = async function handler(req, res) {
       fetchTxs(LIQUIDITY, key)
     ]);
 
-    // Get NEMESI volume
+    // Build set of swap tx hashes for filtering token transfers
+    const swapHashes = new Set(swapTxs.map(tx => tx.hash.toLowerCase()));
+
+    // Fetch NEMESI token transfers filtered to ROUTER address only
     let tokenTxs = [];
     let page = 1;
     while (true) {
-      const url = `${BASE}&module=account&action=tokentx&contractaddress=${NEMESI_CA}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
+      const url = `${BASE}&module=account&action=tokentx&contractaddress=${NEMESI_CA}&address=${ROUTER}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
       const r = await fetch(url);
       const json = await r.json();
       if (json.status !== '1' || !Array.isArray(json.result)) break;
@@ -58,10 +61,12 @@ module.exports = async function handler(req, res) {
       await new Promise(r => setTimeout(r, 250));
     }
 
+    // Only count the inbound leg (user → ROUTER) to avoid double counting
     const volumeByHash = {};
     for (const tx of tokenTxs) {
-      const val = parseFloat(tx.value) / 1e6;
-      volumeByHash[tx.hash] = (volumeByHash[tx.hash] || 0) + val;
+      if (tx.to.toLowerCase() !== ROUTER.toLowerCase()) continue; // skip outbound leg
+      if (!swapHashes.has(tx.hash.toLowerCase())) continue;       // only real swaps
+      volumeByHash[tx.hash] = (parseFloat(tx.value) / 1e18);     // fix: 18 decimals
     }
 
     const traders = {};
