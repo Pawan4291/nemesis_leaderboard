@@ -48,7 +48,7 @@ module.exports = async function handler(req, res) {
     let tokenTxs = [];
     let page = 1;
     while (true) {
-      const url = `${BASE}&module=account&action=tokentx&contractaddress=${NEMESI_CA}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
+const url = `${BASE}&module=account&action=tokentx&contractaddress=${NEMESI_CA}&address=${ROUTER}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
       const r = await fetch(url);
       const json = await r.json();
       if (json.status !== '1' || !Array.isArray(json.result)) break;
@@ -58,11 +58,12 @@ module.exports = async function handler(req, res) {
       await new Promise(r => setTimeout(r, 250));
     }
 
-    const volumeByHash = {};
-    for (const tx of tokenTxs) {
-      const val = parseFloat(tx.value) / 1e6; // ← only change from your working version
-      volumeByHash[tx.hash] = (volumeByHash[tx.hash] || 0) + val;
-    }
+   const volumeByHash = {};
+for (const tx of tokenTxs) {
+  if (tx.from.toLowerCase() !== ROUTER.toLowerCase()) continue;
+  const val = parseFloat(tx.value) / 1e6;
+  volumeByHash[tx.hash] = (volumeByHash[tx.hash] || 0) + val;
+}
 
     const traders = {};
 
