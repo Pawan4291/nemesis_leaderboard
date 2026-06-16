@@ -1,6 +1,6 @@
 const NEMESI_CA = '0x534a29dfca1cefb6e933f6c0d00e8a43a52e60d2';
 const ROUTER = '0x5b23F24b08fa3FAa0Fa555611ACF74c3bAb23550';
-const BASE = 'https://api-sepolia.etherscan.io/api';
+const BASE = 'https://api.etherscan.io/v2/api?chainid=11155111';
 
 let cache = null;
 let cacheTime = 0;
@@ -17,7 +17,7 @@ module.exports = async function handler(req, res) {
   const apikey = key ? '&apikey=' + key : '';
 
   try {
-    const url = `${BASE}?module=account&action=tokentx&contractaddress=${NEMESI_CA}&address=${ROUTER}&page=1&offset=10000&sort=asc${apikey}`;
+   const url = `${BASE}&module=account&action=tokentx&contractaddress=${NEMESI_CA}&address=${ROUTER}&page=1&offset=10000&sort=asc${apikey}`;
     const r = await fetch(url);
     const json = await r.json();
     const txs = Array.isArray(json.result) ? json.result : [];
