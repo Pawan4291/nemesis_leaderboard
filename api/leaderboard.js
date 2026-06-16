@@ -44,29 +44,25 @@ module.exports = async function handler(req, res) {
       fetchTxs(LIQUIDITY, key)
     ]);
 
-    // Build set of swap tx hashes for filtering token transfers
-    const swapHashes = new Set(swapTxs.map(tx => tx.hash.toLowerCase()));
-
-    // Fetch NEMESI token transfers filtered to ROUTER address only
-    let tokenTxs = [];
+    // Map sender → volume using token transfers scoped to ROUTER
+    // Key by `from` address directly — no hash matching needed
+    const volumeByUser = {};
     let page = 1;
     while (true) {
       const url = `${BASE}&module=account&action=tokentx&contractaddress=${NEMESI_CA}&address=${ROUTER}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
       const r = await fetch(url);
       const json = await r.json();
       if (json.status !== '1' || !Array.isArray(json.result)) break;
-      tokenTxs = tokenTxs.concat(json.result);
+      for (const tx of json.result) {
+        // Only count inbound leg: user sent NEMESI to ROUTER
+        if (tx.to.toLowerCase() !== ROUTER.toLowerCase()) continue;
+        const user = tx.from.toLowerCase();
+        const val = parseFloat(tx.value) / 1e18;
+        volumeByUser[user] = (volumeByUser[user] || 0) + val;
+      }
       if (json.result.length < 10000) break;
       page++;
       await new Promise(r => setTimeout(r, 250));
-    }
-
-    // Only count the inbound leg (user → ROUTER) to avoid double counting
-    const volumeByHash = {};
-    for (const tx of tokenTxs) {
-      if (tx.to.toLowerCase() !== ROUTER.toLowerCase()) continue; // skip outbound leg
-      if (!swapHashes.has(tx.hash.toLowerCase())) continue;       // only real swaps
-      volumeByHash[tx.hash] = (parseFloat(tx.value) / 1e18);     // fix: 18 decimals
     }
 
     const traders = {};
@@ -75,7 +71,7 @@ module.exports = async function handler(req, res) {
       const user = tx.from.toLowerCase();
       const ts = parseInt(tx.timeStamp);
       if (!traders[user]) traders[user] = { address: user, volume: 0, swaps: 0, liquidity: 0, lastSwap: 0, firstSwap: ts };
-      traders[user].volume += volumeByHash[tx.hash] || 0;
+      traders[user].volume = volumeByUser[user] || 0; // set once, not accumulate
       traders[user].swaps += 1;
       if (ts > traders[user].lastSwap) traders[user].lastSwap = ts;
       if (ts < traders[user].firstSwap) traders[user].firstSwap = ts;
