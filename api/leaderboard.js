@@ -14,11 +14,10 @@ async function fetchTxs(address, key) {
     const r = await fetch(url);
     const json = await r.json();
     if (json.status !== '1' || !Array.isArray(json.result)) break;
-    const valid = json.result.filter(tx =>
-      tx.to.toLowerCase() === address.toLowerCase() &&
-      tx.isError === '0' &&
-      tx.input && tx.input.length > 10
-    );
+   const valid = json.result.filter(tx =>
+  tx.to.toLowerCase() === address.toLowerCase() &&
+  tx.isError === '0'
+);
     txs = txs.concat(valid);
     if (json.result.length < 10000) break;
     page++;
