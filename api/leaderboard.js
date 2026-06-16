@@ -44,25 +44,26 @@ module.exports = async function handler(req, res) {
       fetchTxs(LIQUIDITY, key)
     ]);
 
-    // Map sender → volume using token transfers scoped to ROUTER
-    // Key by `from` address directly — no hash matching needed
-    const volumeByUser = {};
+    // Fetch NEMESI token transfers scoped to ROUTER
+    let tokenTxs = [];
     let page = 1;
     while (true) {
       const url = `${BASE}&module=account&action=tokentx&contractaddress=${NEMESI_CA}&address=${ROUTER}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
       const r = await fetch(url);
       const json = await r.json();
       if (json.status !== '1' || !Array.isArray(json.result)) break;
-      for (const tx of json.result) {
-        // Only count inbound leg: user sent NEMESI to ROUTER
-        if (tx.to.toLowerCase() !== ROUTER.toLowerCase()) continue;
-        const user = tx.from.toLowerCase();
-        const val = parseFloat(tx.value) / 1e18;
-        volumeByUser[user] = (volumeByUser[user] || 0) + val;
-      }
+      tokenTxs = tokenTxs.concat(json.result);
       if (json.result.length < 10000) break;
       page++;
       await new Promise(r => setTimeout(r, 250));
+    }
+
+    // Sum volume per user: only inbound leg (user → ROUTER)
+    const volumeByUser = {};
+    for (const tx of tokenTxs) {
+      if (tx.to.toLowerCase() !== ROUTER.toLowerCase()) continue;
+      const user = tx.from.toLowerCase();
+      volumeByUser[user] = (volumeByUser[user] || 0) + parseFloat(tx.value) / 1e6;
     }
 
     const traders = {};
@@ -71,7 +72,7 @@ module.exports = async function handler(req, res) {
       const user = tx.from.toLowerCase();
       const ts = parseInt(tx.timeStamp);
       if (!traders[user]) traders[user] = { address: user, volume: 0, swaps: 0, liquidity: 0, lastSwap: 0, firstSwap: ts };
-      traders[user].volume = volumeByUser[user] || 0; // set once, not accumulate
+      traders[user].volume = volumeByUser[user] || 0;
       traders[user].swaps += 1;
       if (ts > traders[user].lastSwap) traders[user].lastSwap = ts;
       if (ts < traders[user].firstSwap) traders[user].firstSwap = ts;
