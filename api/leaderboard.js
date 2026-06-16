@@ -1,106 +1,79 @@
 const NEMESI_CA = '0x534a29dfca1cefb6e933f6c0d00e8a43a52e60d2';
-const ROUTER = '0x5b23F24b08fa3FAa0Fa555611ACF74c3bAb23550';
-const LIQUIDITY = '0x5150911745CbFCC3dAF22c46d8D9694343d2b768';
-const BASE = 'https://api.etherscan.io/v2/api?chainid=11155111';
+const ROUTER   = '0x5b23F24b08fa3FAa0Fa555611ACF74c3bAb23550';
+const LIQUIDITY= '0x5150911745CbFCC3dAF22c46d8D9694343d2b768';
+const BASE     = 'https://api-sepolia.etherscan.io/api';
 
-let cache = null;
-let cacheTime = 0;
+let cache = null, cacheTime = 0;
 
-async function fetchTxs(address, key) {
-  let txs = [];
-  let page = 1;
+async function fetchAllPages(params) {
+  let results = [], page = 1;
   while (true) {
-    const url = `${BASE}&module=account&action=txlist&address=${address}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
-    const r = await fetch(url);
+    const qs = new URLSearchParams({ ...params, page, offset: 10000, sort: 'asc' });
+    const r = await fetch(`${BASE}?${qs}`);
     const json = await r.json();
     if (json.status !== '1' || !Array.isArray(json.result)) break;
-    const valid = json.result.filter(tx =>
-      tx.to.toLowerCase() === address.toLowerCase() &&
-      tx.isError === '0' &&
-      tx.input && tx.input.length > 10
-    );
-    txs = txs.concat(valid);
+    results = results.concat(json.result);
     if (json.result.length < 10000) break;
     page++;
     await new Promise(r => setTimeout(r, 250));
   }
-  return txs;
-}
-
-async function fetchTokenTxs(key) {
-  let txs = [];
-  let page = 1;
-  while (true) {
-    // FIX 1: anchor to ROUTER address
-    const url = `${BASE}&module=account&action=tokentx&contractaddress=${NEMESI_CA}&address=${ROUTER}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
-    const r = await fetch(url);
-    const json = await r.json();
-    if (json.status !== '1' || !Array.isArray(json.result)) break;
-    txs = txs.concat(json.result);
-    if (json.result.length < 10000) break;
-    page++;
-    await new Promise(r => setTimeout(r, 250));
-  }
-  return txs;
+  return results;
 }
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   const now = Date.now();
-  if (cache && now - cacheTime < 5 * 60 * 1000) {
-    return res.json({ ...cache, cached: true });
-  }
+  if (cache && now - cacheTime < 5 * 60 * 1000) return res.json({ ...cache, cached: true });
+
   const key = process.env.ETHERSCAN_API_KEY || '';
   if (!key) return res.status(500).json({ error: 'Missing ETHERSCAN_API_KEY' });
 
   try {
-    const [swapTxs, liquidityTxs, tokenTxs] = await Promise.all([
-      fetchTxs(ROUTER, key),
-      fetchTxs(LIQUIDITY, key),
-      fetchTokenTxs(key)
+    const [tokenTxs, liquidityTxs] = await Promise.all([
+      fetchAllPages({ module: 'account', action: 'tokentx', contractaddress: NEMESI_CA, address: ROUTER, apikey: key }),
+      fetchAllPages({ module: 'account', action: 'txlist',  address: LIQUIDITY, apikey: key })
     ]);
 
-    // FIX 2: only count outgoing leg (to user, not to router)
-    const volumeByHash = {};
-    for (const tx of tokenTxs) {
-      if (tx.to.toLowerCase() === ROUTER.toLowerCase()) continue;
-      const val = parseFloat(tx.value) / 1e6;
-      volumeByHash[tx.hash] = (volumeByHash[tx.hash] || 0) + val;
-    }
-
     const traders = {};
+    const router = ROUTER.toLowerCase();
 
-    for (const tx of swapTxs) {
-      const user = tx.from.toLowerCase();
-      const ts = parseInt(tx.timeStamp);
-      // FIX 3: firstSwap: Infinity
-      if (!traders[user]) traders[user] = { address: user, volume: 0, swaps: 0, liquidity: 0, lastSwap: 0, firstSwap: Infinity };
-      traders[user].volume += volumeByHash[tx.hash] || 0;
-      traders[user].swaps += 1;
-      if (ts > traders[user].lastSwap) traders[user].lastSwap = ts;
-      if (ts < traders[user].firstSwap) traders[user].firstSwap = ts;
+    for (const tx of tokenTxs) {
+      const from = tx.from.toLowerCase();
+      const to   = tx.to.toLowerCase();
+      // Only count user→router direction to avoid double counting
+      if (to !== router || from === router) continue;
+
+      const val = parseFloat(tx.value) / 1e6;
+      const ts  = parseInt(tx.timeStamp);
+      if (!traders[from]) traders[from] = { address: from, volume: 0, swaps: 0, liquidity: 0, lastSwap: 0, firstSwap: Infinity };
+      traders[from].volume += val;
+      traders[from].swaps  += 1;
+      if (ts > traders[from].lastSwap)  traders[from].lastSwap  = ts;
+      if (ts < traders[from].firstSwap) traders[from].firstSwap = ts;
     }
 
     for (const tx of liquidityTxs) {
+      if (tx.isError !== '0' || !tx.input || tx.input.length <= 10) continue;
       const user = tx.from.toLowerCase();
-      const ts = parseInt(tx.timeStamp);
+      const ts   = parseInt(tx.timeStamp);
       if (!traders[user]) traders[user] = { address: user, volume: 0, swaps: 0, liquidity: 0, lastSwap: 0, firstSwap: Infinity };
       traders[user].liquidity += 1;
-      if (ts > traders[user].lastSwap) traders[user].lastSwap = ts;
+      if (ts > traders[user].lastSwap)  traders[user].lastSwap  = ts;
       if (ts < traders[user].firstSwap) traders[user].firstSwap = ts;
     }
 
     const list = Object.values(traders).sort((a, b) => b.volume - a.volume);
     cache = {
       traders: list,
-      totalVolume: list.reduce((s, t) => s + t.volume, 0),
-      totalSwaps: list.reduce((s, t) => s + t.swaps, 0),
+      totalVolume:    list.reduce((s, t) => s + t.volume,    0),
+      totalSwaps:     list.reduce((s, t) => s + t.swaps,     0),
       totalLiquidity: list.reduce((s, t) => s + t.liquidity, 0),
-      totalTraders: list.length,
-      fetchedAt: now
+      totalTraders:   list.length,
+      fetchedAt:      now
     };
     cacheTime = now;
     return res.json({ ...cache, cached: false });
+
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
