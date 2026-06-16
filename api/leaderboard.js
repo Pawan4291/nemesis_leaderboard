@@ -59,7 +59,7 @@ module.exports = async function handler(req, res) {
 
     const volumeByHash = {};
     for (const tx of tokenTxs) {
-      const val = parseFloat(tx.value) / 1e8;
+      const val = parseFloat(tx.value) / 1e6;
       volumeByHash[tx.hash] = (volumeByHash[tx.hash] || 0) + val;
     }
 
