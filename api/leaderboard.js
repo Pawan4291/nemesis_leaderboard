@@ -1,6 +1,6 @@
 const NEMESI_CA = '0x534a29dfca1cefb6e933f6c0d00e8a43a52e60d2';
 const ROUTER   = '0x5b23F24b08fa3FAa0Fa555611ACF74c3bAb23550'.toLowerCase();
-const BASE     = 'https://api-sepolia.etherscan.io/api';
+const BASE = 'https://api-sepolia.etherscan.io/v2/chainId/11155111/api';
 
 let cache = null;
 let cacheTime = 0;
