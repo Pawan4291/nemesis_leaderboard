@@ -23,18 +23,17 @@ module.exports = async function handler(req, res) {
 
     const traders = {};
     txs.forEach(tx => {
-      const from = tx.from.toLowerCase();
-      const to = tx.to.toLowerCase();
-      if (from !== ROUTER && to !== ROUTER) return;
-      const user = from === ROUTER ? to : from;
-      const val = parseFloat(tx.value) / 1e18;
-      const ts = parseInt(tx.timeStamp);
-      if (!traders[user]) traders[user] = { address: user, volume: 0, swaps: 0, lastSwap: 0, firstSwap: Infinity };
-      traders[user].volume += val;
-      traders[user].swaps += 1;
-      if (ts > traders[user].lastSwap) traders[user].lastSwap = ts;
-      if (ts < traders[user].firstSwap) traders[user].firstSwap = ts;
-    });
+  const from = tx.from.toLowerCase();
+  const to = tx.to.toLowerCase();
+  const user = from;
+  const val = parseFloat(tx.value) / 1e18;
+  const ts = parseInt(tx.timeStamp);
+  if (!traders[user]) traders[user] = { address: user, volume: 0, swaps: 0, lastSwap: 0, firstSwap: Infinity };
+  traders[user].volume += val;
+  traders[user].swaps += 1;
+  if (ts > traders[user].lastSwap) traders[user].lastSwap = ts;
+  if (ts < traders[user].firstSwap) traders[user].firstSwap = ts;
+});
 
     const list = Object.values(traders).sort((a, b) => b.volume - a.volume);
     cache = {
