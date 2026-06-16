@@ -1,14 +1,14 @@
 const NEMESI_CA = '0x534a29dfca1cefb6e933f6c0d00e8a43a52e60d2';
 const ROUTER    = '0x5b23F24b08fa3FAa0Fa555611ACF74c3bAb23550';
 const LIQUIDITY = '0x5150911745CbFCC3dAF22c46d8D9694343d2b768';
-const BASE      = 'https://api-sepolia.etherscan.io/api';
+const BASE = 'https://api.etherscan.io/v2/api';
 
 let cache = null, cacheTime = 0;
 
 async function fetchAllPages(params) {
   let results = [], page = 1;
   while (true) {
-    const qs = new URLSearchParams({ ...params, page, offset: 10000, sort: 'asc' });
+    const qs = new URLSearchParams({ chainid: '11155111', ...params, page, offset: 10000, sort: 'asc' });
     const r = await fetch(`${BASE}?${qs}`);
     const json = await r.json();
     if (json.status !== '1' || !Array.isArray(json.result)) break;
