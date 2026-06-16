@@ -54,7 +54,7 @@ module.exports = async function handler(req, res) {
     // Map tx hash → NEMESI volume
     const volumeByHash = {};
     for (const tx of tokenTxs) {
-      const val = parseFloat(tx.value) / 1e18;
+      const val = parseFloat(tx.value) / 1e6;
       volumeByHash[tx.hash] = (volumeByHash[tx.hash] || 0) + val;
     }
 
