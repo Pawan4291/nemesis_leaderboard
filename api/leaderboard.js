@@ -44,11 +44,10 @@ module.exports = async function handler(req, res) {
       fetchTxs(LIQUIDITY, key)
     ]);
 
-    // Fetch token transfers OUT from ROUTER to users
     let tokenTxs = [];
     let page = 1;
     while (true) {
-      const url = `${BASE}&module=account&action=tokentx&contractaddress=${NEMESI_CA}&address=${ROUTER}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
+      const url = `${BASE}&module=account&action=tokentx&contractaddress=${NEMESI_CA}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
       const r = await fetch(url);
       const json = await r.json();
       if (json.status !== '1' || !Array.isArray(json.result)) break;
@@ -58,12 +57,10 @@ module.exports = async function handler(req, res) {
       await new Promise(r => setTimeout(r, 250));
     }
 
-    // Volume per user = tokens received FROM router
-    const volumeByUser = {};
+    const volumeByHash = {};
     for (const tx of tokenTxs) {
-      if (tx.from.toLowerCase() !== ROUTER.toLowerCase()) continue;
-      const user = tx.to.toLowerCase();
-      volumeByUser[user] = (volumeByUser[user] || 0) + parseFloat(tx.value) / 1e6;
+      const val = parseFloat(tx.value) / 1e6;
+      volumeByHash[tx.hash] = (volumeByHash[tx.hash] || 0) + val;
     }
 
     const traders = {};
@@ -72,7 +69,7 @@ module.exports = async function handler(req, res) {
       const user = tx.from.toLowerCase();
       const ts = parseInt(tx.timeStamp);
       if (!traders[user]) traders[user] = { address: user, volume: 0, swaps: 0, liquidity: 0, lastSwap: 0, firstSwap: ts };
-      traders[user].volume = volumeByUser[user] || 0;
+      traders[user].volume += volumeByHash[tx.hash] || 0;
       traders[user].swaps += 1;
       if (ts > traders[user].lastSwap) traders[user].lastSwap = ts;
       if (ts < traders[user].firstSwap) traders[user].firstSwap = ts;
