@@ -27,12 +27,12 @@ module.exports = async function handler(req, res) {
   if (!key) return res.status(500).json({ error: 'Missing ETHERSCAN_API_KEY' });
 
   // DEBUG - always runs before cache
-  if (req.query.debug === '1') {
-    const qs = new URLSearchParams({ module: 'account', action: 'tokentx', contractaddress: NEMESI_CA, address: ROUTER, page: 1, offset: 5, sort: 'asc', apikey: key });
+ if (req.query.debug === '1') {
+    const qs = new URLSearchParams({ chainid: '11155111', module: 'account', action: 'tokentx', contractaddress: NEMESI_CA, address: ROUTER, page: 1, offset: 5, sort: 'asc', apikey: key });
     const r = await fetch(`${BASE}?${qs}`);
     const json = await r.json();
     return res.json(json);
-  }
+}
 
   // CACHE BUST - clears bad cached empty data
   if (req.query.bust === '1') { cache = null; cacheTime = 0; }
