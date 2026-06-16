@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nemesis Leaderboard — Testnet</title>
+<meta name="description" content="Community leaderboard for Nemesis DEX testnet. Track swap volume, rankings and your wallet stats on Sepolia." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- Animated background -->
+<div class="bg-canvas" aria-hidden="true">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <canvas id="particle-canvas"></canvas>
+</div>
+
+<!-- Nav -->
+<nav class="navbar" id="navbar">
+  <div class="nav-inner">
+    <a class="nav-logo" href="#hero">
+      <span class="logo-n">N</span><span class="logo-text">emesis</span>
+      <span class="logo-tag">Testnet</span>
+    </a>
+    <div class="nav-links">
+      <a href="#leaderboard" class="nav-link">Leaderboard</a>
+      <a href="#mystats" class="nav-link">My Stats</a>
+      <a href="https://nemesis.trade/trade" target="_blank" rel="noopener" class="nav-cta">Trade Now ↗</a>
+    </div>
+    <button class="hamburger" id="hamburger" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="mobile-menu" id="mobile-menu">
+    <a href="#leaderboard" class="mob-link">Leaderboard</a>
+    <a href="#mystats" class="mob-link">My Stats</a>
+    <a href="https://nemesis.trade/trade" target="_blank" rel="noopener" class="mob-link accent">Trade Now ↗</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero" id="hero">
+  <div class="hero-inner">
+    <div class="hero-badge reveal">
+      <span class="badge-dot"></span>
+      Live on Sepolia Testnet
+    </div>
+    <h1 class="hero-title reveal">
+      Trade. Compete.<br/>
+      <span class="gradient-text typed-target"></span>
+    </h1>
+    <p class="hero-sub reveal">Community-built leaderboard tracking every swap on Nemesis DEX testnet. No fake data. Pure on-chain.</p>
+    <div class="hero-actions reveal">
+      <a href="#leaderboard" class="btn-primary">View Leaderboard</a>
+      <a href="https://nemesis.trade/trade" target="_blank" rel="noopener" class="btn-ghost">Start Trading ↗</a>
+    </div>
+    <div class="hero-links reveal">
+      <a href="https://nemesis.trade/" target="_blank" rel="noopener" class="ext-link">Website</a>
+      <span class="dot-sep">·</span>
+      <a href="https://x.com/nemesisdottrade" target="_blank" rel="noopener" class="ext-link">Twitter / X</a>
+      <span class="dot-sep">·</span>
+      <a href="https://t.me/nemesisdottrade" target="_blank" rel="noopener" class="ext-link">Telegram</a>
+    </div>
+  </div>
+  <div class="scroll-hint" aria-hidden="true">
+    <span>scroll</span>
+    <div class="scroll-line"></div>
+  </div>
+</section>
+
+<!-- Stats bar -->
+<section class="stats-bar" id="stats-bar">
+  <div class="stats-inner">
+    <div class="stat-item reveal">
+      <span class="stat-num" id="sb-traders">—</span>
+      <span class="stat-label">Unique Traders</span>
+    </div>
+    <div class="stat-divider" aria-hidden="true"></div>
+    <div class="stat-item reveal">
+      <span class="stat-num" id="sb-swaps">—</span>
+      <span class="stat-label">Total Swaps</span>
+    </div>
+    <div class="stat-divider" aria-hidden="true"></div>
+    <div class="stat-item reveal">
+      <span class="stat-num" id="sb-vol">—</span>
+      <span class="stat-label">NEMESI Volume</span>
+    </div>
+    <div class="stat-divider" aria-hidden="true"></div>
+    <div class="stat-item reveal">
+      <span class="stat-num" id="sb-updated">—</span>
+      <span class="stat-label">Last Refresh</span>
+    </div>
+  </div>
+</section>
+
+<!-- Leaderboard -->
+<section class="section" id="leaderboard">
+  <div class="section-inner">
+    <div class="section-head reveal">
+      <div class="section-eyebrow">On-chain rankings</div>
+      <h2 class="section-title">Top Traders</h2>
+      <p class="section-sub">Ranked by real NEMESI token swap volume. Data pulled directly from Sepolia Etherscan.</p>
+    </div>
+
+    <div class="lb-controls reveal">
+      <div class="sort-pills">
+        <button class="sort-pill active" data-sort="volume">By Volume</button>
+        <button class="sort-pill" data-sort="swaps">By Swaps</button>
+      </div>
+      <button class="refresh-btn" id="refresh-btn">
+        <svg class="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        Refresh Data
+      </button>
+    </div>
+
+    <div id="lb-error" class="error-box" style="display:none"></div>
+    <div id="lb-loading" class="loading-state">
+      <div class="spinner"></div>
+      <p>Fetching on-chain data…</p>
+    </div>
+
+    <div id="lb-table-wrap" style="display:none">
+      <table class="lb-table" id="lb-table">
+        <thead>
+          <tr>
+            <th class="th-rank">Rank</th>
+            <th class="th-addr">Wallet</th>
+            <th class="th-vol">NEMESI Volume</th>
+            <th class="th-swaps">Swaps</th>
+            <th class="th-last">Last Active</th>
+            <th class="th-link"></th>
+          </tr>
+        </thead>
+        <tbody id="lb-body"></tbody>
+      </table>
+      <div class="pag-row" id="pag-row">
+        <button class="pag-btn" id="pag-prev">← Prev</button>
+        <span class="pag-info" id="pag-info"></span>
+        <button class="pag-btn" id="pag-next">Next →</button>
+      </div>
+    </div>
+
+    <div id="lb-empty" class="empty-state" style="display:none">
+      <div class="empty-icon">📊</div>
+      <p>No swap data found yet. Be the first to trade on <a href="https://nemesis.trade/trade" target="_blank" rel="noopener">Nemesis</a>!</p>
+    </div>
+  </div>
+</section>
+
+<!-- My Stats -->
+<section class="section section-alt" id="mystats">
+  <div class="section-inner">
+    <div class="section-head reveal">
+      <div class="section-eyebrow">Personal dashboard</div>
+      <h2 class="section-title">My Stats</h2>
+      <p class="section-sub">Enter any wallet address to see its rank, volume, and activity on Nemesis testnet.</p>
+    </div>
+
+    <div class="wallet-form reveal">
+      <div class="wallet-input-wrap">
+        <input type="text" id="wallet-input" class="wallet-input" placeholder="0x... your wallet address" autocomplete="off" spellcheck="false" />
+        <button class="wallet-btn" id="wallet-btn">Look Up</button>
+      </div>
+    </div>
+
+    <div id="my-result" style="display:none" class="my-profile reveal">
+      <div class="profile-card">
+        <div class="profile-header">
+          <div class="profile-avatar" id="p-avatar"></div>
+          <div class="profile-meta">
+            <div class="profile-rank" id="p-rank"></div>
+            <div class="profile-addr" id="p-addr"></div>
+          </div>
+          <a class="profile-ethlink" id="p-ethlink" target="_blank" rel="noopener">View on Etherscan ↗</a>
+        </div>
+        <div class="profile-stats">
+          <div class="ps-card">
+            <div class="ps-label">NEMESI Volume</div>
+            <div class="ps-val" id="p-vol">—</div>
+          </div>
+          <div class="ps-card">
+            <div class="ps-label">Total Swaps</div>
+            <div class="ps-val" id="p-swaps">—</div>
+          </div>
+          <div class="ps-card">
+            <div class="ps-label">Market Share</div>
+            <div class="ps-val" id="p-share">—</div>
+          </div>
+          <div class="ps-card">
+            <div class="ps-label">Top Percentile</div>
+            <div class="ps-val" id="p-pct">—</div>
+          </div>
+        </div>
+        <div class="profile-dates">
+          <span>First swap: <strong id="p-first">—</strong></span>
+          <span>Last swap: <strong id="p-last">—</strong></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="my-notfound" class="not-found" style="display:none">
+      <p>No swaps found for this wallet. <a href="https://nemesis.trade/trade" target="_blank" rel="noopener">Start trading on Nemesis →</a></p>
+    </div>
+    <div id="my-nodata" class="not-found" style="display:none">
+      <p>Load the leaderboard first — go to <a href="#leaderboard">Leaderboard</a> and click Refresh.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-logo">
+      <span class="logo-n">N</span><span class="logo-text">emesis</span>
+      <span class="logo-tag">Testnet</span>
+    </div>
+    <p class="footer-note">Community-built. Not affiliated with the Nemesis team. Data sourced from Sepolia Etherscan.</p>
+    <div class="footer-links">
+      <a href="https://nemesis.trade/" target="_blank" rel="noopener">nemesis.trade</a>
+      <a href="https://x.com/nemesisdottrade" target="_blank" rel="noopener">Twitter</a>
+      <a href="https://t.me/nemesisdottrade" target="_blank" rel="noopener">Telegram</a>
+      <a href="https://sepolia.etherscan.io/address/0x5b23F24b08fa3FAa0Fa555611ACF74c3bAb23550" target="_blank" rel="noopener">Contract</a>
+    </div>
+    <p class="footer-ca">NEMESI CA: <span class="mono">0x534a29dfca1cefb6e933f6c0d00e8a43a52e60d2</span></p>
+  </div>
+</footer>
+
+<script src="js/particles.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
