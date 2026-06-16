@@ -86,6 +86,11 @@
       <span class="stat-label">Total Swaps</span>
     </div>
     <div class="stat-divider" aria-hidden="true"></div>
+<div class="stat-item reveal">
+  <span class="stat-num" id="sb-liquidity">—</span>
+  <span class="stat-label">Liquidity TXs</span>
+</div>
+    <div class="stat-divider" aria-hidden="true"></div>
     <div class="stat-item reveal">
       <span class="stat-num" id="sb-vol">—</span>
       <span class="stat-label">NEMESI Volume</span>
@@ -111,7 +116,10 @@
       <div class="sort-pills">
         <button class="sort-pill active" data-sort="volume">By Volume</button>
         <button class="sort-pill" data-sort="swaps">By Swaps</button>
+        <button class="sort-pill" data-sort="liquidity">By Liquidity</button>
+<button class="sort-pill" data-sort="total">By Total TXs</button>
       </div>
+
       <button class="refresh-btn" id="refresh-btn">
         <svg class="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         Refresh Data
@@ -127,15 +135,17 @@
     <div id="lb-table-wrap" style="display:none">
       <table class="lb-table" id="lb-table">
         <thead>
-          <tr>
-            <th class="th-rank">Rank</th>
-            <th class="th-addr">Wallet</th>
-            <th class="th-vol">NEMESI Volume</th>
-            <th class="th-swaps">Swaps</th>
-            <th class="th-last">Last Active</th>
-            <th class="th-link"></th>
-          </tr>
-        </thead>
+  <tr>
+    <th class="th-rank">Rank</th>
+    <th class="th-addr">Wallet</th>
+    <th class="th-vol">NEMESI Volume</th>
+    <th class="th-swaps">Swaps</th>
+    <th class="th-swaps">Liquidity</th>
+    <th class="th-swaps">Total TXs</th>
+    <th class="th-last">Last Active</th>
+    <th class="th-link"></th>
+  </tr>
+</thead>
         <tbody id="lb-body"></tbody>
       </table>
       <div class="pag-row" id="pag-row">
@@ -187,6 +197,14 @@
             <div class="ps-label">Total Swaps</div>
             <div class="ps-val" id="p-swaps">—</div>
           </div>
+          <div class="ps-card">
+  <div class="ps-label">Liquidity TXs</div>
+  <div class="ps-val" id="p-liquidity">—</div>
+</div>
+<div class="ps-card">
+  <div class="ps-label">Total TXs</div>
+  <div class="ps-val" id="p-total">—</div>
+</div>
           <div class="ps-card">
             <div class="ps-label">Market Share</div>
             <div class="ps-val" id="p-share">—</div>

@@ -63,9 +63,7 @@ function initNavbar() {
 
   const ham = $('hamburger');
   const mob = $('mobile-menu');
-  ham.addEventListener('click', () => {
-    mob.classList.toggle('open');
-  });
+  ham.addEventListener('click', () => mob.classList.toggle('open'));
   document.querySelectorAll('.mob-link').forEach(l => {
     l.addEventListener('click', () => mob.classList.remove('open'));
   });
@@ -141,21 +139,20 @@ function showError(msg) {
 
 /* ── Stats bar ── */
 function updateGlobalStats(data) {
-  const sbTraders = $('sb-traders');
-  const sbSwaps   = $('sb-swaps');
-  const sbVol     = $('sb-vol');
-  const sbUpd     = $('sb-updated');
-
-  animateNum(sbTraders, data.totalTraders, 800, n => Math.round(n).toLocaleString());
-  animateNum(sbSwaps,   data.totalSwaps,   800, n => Math.round(n).toLocaleString());
-  animateNum(sbVol,     data.totalVolume,  800, n => fmtNum(n));
-  sbUpd.textContent = new Date(data.fetchedAt).toLocaleTimeString();
+  animateNum($('sb-traders'),   data.totalTraders,   800, n => Math.round(n).toLocaleString());
+  animateNum($('sb-swaps'),     data.totalSwaps,     800, n => Math.round(n).toLocaleString());
+  animateNum($('sb-liquidity'), data.totalLiquidity, 800, n => Math.round(n).toLocaleString());
+  animateNum($('sb-vol'),       data.totalVolume,    800, n => fmtNum(n));
+  $('sb-updated').textContent = new Date(data.fetchedAt).toLocaleTimeString();
 }
 
 /* ── Leaderboard render ── */
 function renderTable() {
-  const sorted = [...traders].sort((a, b) => b[sortField] - a[sortField]);
-  const maxVal = sorted[0] ? sorted[0][sortField] : 1;
+  const sorted = [...traders].sort((a, b) => {
+    if (sortField === 'total') return (b.swaps + b.liquidity) - (a.swaps + a.liquidity);
+    return b[sortField] - a[sortField];
+  });
+  const maxVal = sorted[0] ? (sortField === 'total' ? sorted[0].swaps + sorted[0].liquidity : sorted[0][sortField]) : 1;
 
   if (!sorted.length) {
     $('lb-empty').style.display = 'block';
@@ -164,18 +161,20 @@ function renderTable() {
     return;
   }
 
-  const start  = (page - 1) * PER_PAGE;
+  const start    = (page - 1) * PER_PAGE;
   const pageData = sorted.slice(start, start + PER_PAGE);
-  const maxPage = Math.ceil(sorted.length / PER_PAGE);
+  const maxPage  = Math.ceil(sorted.length / PER_PAGE);
 
   const tbody = $('lb-body');
   tbody.innerHTML = '';
 
   pageData.forEach((t, i) => {
-    const rank    = start + i + 1;
-    const barPct  = Math.round((t[sortField] / maxVal) * 100);
-    const medal   = rank === 1 ? 'medal-1' : rank === 2 ? 'medal-2' : rank === 3 ? 'medal-3' : 'medal-n';
-    const esLink  = ESCAN_URL + t.address;
+    const rank   = start + i + 1;
+    const val    = sortField === 'total' ? t.swaps + t.liquidity : t[sortField];
+    const barPct = Math.round((val / maxVal) * 100);
+    const medal  = rank === 1 ? 'medal-1' : rank === 2 ? 'medal-2' : rank === 3 ? 'medal-3' : 'medal-n';
+    const esLink = ESCAN_URL + t.address;
+    const total  = t.swaps + (t.liquidity || 0);
 
     const tr = document.createElement('tr');
     tr.style.animationDelay = (i * 25) + 'ms';
@@ -193,6 +192,8 @@ function renderTable() {
         </div>
       </td>
       <td class="swaps-cell">${t.swaps}</td>
+      <td class="swaps-cell">${t.liquidity || 0}</td>
+      <td class="swaps-cell">${total}</td>
       <td class="date-cell">${fmtDate(t.lastSwap)}</td>
       <td class="link-cell"><a href="${esLink}" target="_blank" rel="noopener">Etherscan ↗</a></td>
     `;
@@ -260,9 +261,9 @@ function initMyStats() {
 
   function lookup() {
     const addr = input.value.trim().toLowerCase();
-    $('my-result').style.display    = 'none';
-    $('my-notfound').style.display  = 'none';
-    $('my-nodata').style.display    = 'none';
+    $('my-result').style.display   = 'none';
+    $('my-notfound').style.display = 'none';
+    $('my-nodata').style.display   = 'none';
 
     if (!/^0x[0-9a-f]{40}$/.test(addr)) {
       $('my-nodata').style.display = 'block';
@@ -282,21 +283,24 @@ function initMyStats() {
       return;
     }
 
-    const rank    = sorted.indexOf(trader) + 1;
-    const topPct  = ((rank / sorted.length) * 100).toFixed(0);
-    const share   = totalVol > 0 ? ((trader.volume / totalVol) * 100).toFixed(2) : '0';
-    const abbrev  = addr.slice(2, 4).toUpperCase();
+    const rank   = sorted.indexOf(trader) + 1;
+    const topPct = ((rank / sorted.length) * 100).toFixed(0);
+    const share  = totalVol > 0 ? ((trader.volume / totalVol) * 100).toFixed(2) : '0';
+    const abbrev = addr.slice(2, 4).toUpperCase();
+    const total  = trader.swaps + (trader.liquidity || 0);
 
-    $('p-avatar').textContent = abbrev;
-    $('p-rank').textContent   = `Rank #${rank}`;
-    $('p-addr').textContent   = addr;
-    $('p-ethlink').href       = ESCAN_URL + addr;
-    $('p-vol').textContent    = fmtNum(trader.volume);
-    $('p-swaps').textContent  = trader.swaps;
-    $('p-share').textContent  = share + '%';
-    $('p-pct').textContent    = 'Top ' + topPct + '%';
-    $('p-first').textContent  = fmtDate(trader.firstSwap === Infinity ? 0 : trader.firstSwap);
-    $('p-last').textContent   = fmtDate(trader.lastSwap);
+    $('p-avatar').textContent  = abbrev;
+    $('p-rank').textContent    = `Rank #${rank}`;
+    $('p-addr').textContent    = addr;
+    $('p-ethlink').href        = ESCAN_URL + addr;
+    $('p-vol').textContent     = fmtNum(trader.volume);
+    $('p-swaps').textContent   = trader.swaps;
+    $('p-liquidity').textContent = trader.liquidity || 0;
+    $('p-total').textContent   = total;
+    $('p-share').textContent   = share + '%';
+    $('p-pct').textContent     = 'Top ' + topPct + '%';
+    $('p-first').textContent   = fmtDate(trader.firstSwap === Infinity ? 0 : trader.firstSwap);
+    $('p-last').textContent    = fmtDate(trader.lastSwap);
 
     $('my-result').style.display = 'block';
     $('my-result').classList.remove('visible');
