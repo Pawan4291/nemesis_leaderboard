@@ -16,7 +16,8 @@ async function fetchTxs(address, key) {
     if (json.status !== '1' || !Array.isArray(json.result)) break;
    const valid = json.result.filter(tx =>
   tx.to.toLowerCase() === address.toLowerCase() &&
-  tx.isError === '0'
+  tx.isError === '0' &&
+  tx.input && tx.input.length > 10
 );
     txs = txs.concat(valid);
     if (json.result.length < 10000) break;
