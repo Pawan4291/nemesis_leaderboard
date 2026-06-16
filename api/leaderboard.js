@@ -14,12 +14,29 @@ async function fetchTxs(address, key) {
     const r = await fetch(url);
     const json = await r.json();
     if (json.status !== '1' || !Array.isArray(json.result)) break;
-   const valid = json.result.filter(tx =>
-  tx.to.toLowerCase() === address.toLowerCase() &&
-  tx.isError === '0' &&
-  tx.input && tx.input.length > 10
-);
+    const valid = json.result.filter(tx =>
+      tx.to.toLowerCase() === address.toLowerCase() &&
+      tx.isError === '0' &&
+      tx.input && tx.input.length > 10
+    );
     txs = txs.concat(valid);
+    if (json.result.length < 10000) break;
+    page++;
+    await new Promise(r => setTimeout(r, 250));
+  }
+  return txs;
+}
+
+async function fetchTokenTxs(key) {
+  let txs = [];
+  let page = 1;
+  while (true) {
+    // FIX 1: anchor to ROUTER address
+    const url = `${BASE}&module=account&action=tokentx&contractaddress=${NEMESI_CA}&address=${ROUTER}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
+    const r = await fetch(url);
+    const json = await r.json();
+    if (json.status !== '1' || !Array.isArray(json.result)) break;
+    txs = txs.concat(json.result);
     if (json.result.length < 10000) break;
     page++;
     await new Promise(r => setTimeout(r, 250));
@@ -29,36 +46,24 @@ async function fetchTxs(address, key) {
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-
   const now = Date.now();
   if (cache && now - cacheTime < 5 * 60 * 1000) {
     return res.json({ ...cache, cached: true });
   }
-
   const key = process.env.ETHERSCAN_API_KEY || '';
   if (!key) return res.status(500).json({ error: 'Missing ETHERSCAN_API_KEY' });
 
   try {
-    const [swapTxs, liquidityTxs] = await Promise.all([
+    const [swapTxs, liquidityTxs, tokenTxs] = await Promise.all([
       fetchTxs(ROUTER, key),
-      fetchTxs(LIQUIDITY, key)
+      fetchTxs(LIQUIDITY, key),
+      fetchTokenTxs(key)
     ]);
 
-    let tokenTxs = [];
-    let page = 1;
-    while (true) {
-      const url = `${BASE}&module=account&action=tokentx&contractaddress=${NEMESI_CA}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
-      const r = await fetch(url);
-      const json = await r.json();
-      if (json.status !== '1' || !Array.isArray(json.result)) break;
-      tokenTxs = tokenTxs.concat(json.result);
-      if (json.result.length < 10000) break;
-      page++;
-      await new Promise(r => setTimeout(r, 250));
-    }
-
+    // FIX 2: only count outgoing leg (to user, not to router)
     const volumeByHash = {};
     for (const tx of tokenTxs) {
+      if (tx.to.toLowerCase() === ROUTER.toLowerCase()) continue;
       const val = parseFloat(tx.value) / 1e6;
       volumeByHash[tx.hash] = (volumeByHash[tx.hash] || 0) + val;
     }
@@ -68,7 +73,8 @@ module.exports = async function handler(req, res) {
     for (const tx of swapTxs) {
       const user = tx.from.toLowerCase();
       const ts = parseInt(tx.timeStamp);
-      if (!traders[user]) traders[user] = { address: user, volume: 0, swaps: 0, liquidity: 0, lastSwap: 0, firstSwap: ts };
+      // FIX 3: firstSwap: Infinity
+      if (!traders[user]) traders[user] = { address: user, volume: 0, swaps: 0, liquidity: 0, lastSwap: 0, firstSwap: Infinity };
       traders[user].volume += volumeByHash[tx.hash] || 0;
       traders[user].swaps += 1;
       if (ts > traders[user].lastSwap) traders[user].lastSwap = ts;
@@ -78,14 +84,13 @@ module.exports = async function handler(req, res) {
     for (const tx of liquidityTxs) {
       const user = tx.from.toLowerCase();
       const ts = parseInt(tx.timeStamp);
-      if (!traders[user]) traders[user] = { address: user, volume: 0, swaps: 0, liquidity: 0, lastSwap: 0, firstSwap: ts };
+      if (!traders[user]) traders[user] = { address: user, volume: 0, swaps: 0, liquidity: 0, lastSwap: 0, firstSwap: Infinity };
       traders[user].liquidity += 1;
       if (ts > traders[user].lastSwap) traders[user].lastSwap = ts;
       if (ts < traders[user].firstSwap) traders[user].firstSwap = ts;
     }
 
     const list = Object.values(traders).sort((a, b) => b.volume - a.volume);
-
     cache = {
       traders: list,
       totalVolume: list.reduce((s, t) => s + t.volume, 0),
@@ -95,9 +100,7 @@ module.exports = async function handler(req, res) {
       fetchedAt: now
     };
     cacheTime = now;
-
     return res.json({ ...cache, cached: false });
-
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
