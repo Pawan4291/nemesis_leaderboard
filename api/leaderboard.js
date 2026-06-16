@@ -1,21 +1,21 @@
 const NEMESI_CA = '0x534a29dfca1cefb6e933f6c0d00e8a43a52e60d2';
 const ROUTER = '0x5b23F24b08fa3FAa0Fa555611ACF74c3bAb23550';
 const LIQUIDITY = '0x5150911745CbFCC3dAF22c46d8D9694343d2b768';
-const BASE = 'https://api-sepolia.etherscan.io/api'; // FIXED
+const BASE = 'https://api.etherscan.io/v2/api?chainid=11155111';
 
 let cache = null;
 let cacheTime = 0;
 
-async function fetchTxs(address, key, strictTo = true) {
+async function fetchTxs(address, key) {
   let txs = [];
   let page = 1;
   while (true) {
-    const url = `${BASE}?module=account&action=txlist&address=${address}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
+    const url = `${BASE}&module=account&action=txlist&address=${address}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
     const r = await fetch(url);
     const json = await r.json();
     if (json.status !== '1' || !Array.isArray(json.result)) break;
     const valid = json.result.filter(tx =>
-      (strictTo ? tx.to.toLowerCase() === address.toLowerCase() : true) &&
+      tx.to.toLowerCase() === address.toLowerCase() &&
       tx.isError === '0' &&
       tx.input && tx.input.length > 10
     );
@@ -40,15 +40,15 @@ module.exports = async function handler(req, res) {
 
   try {
     const [swapTxs, liquidityTxs] = await Promise.all([
-      fetchTxs(ROUTER, key, true),
-      fetchTxs(LIQUIDITY, key, false) // FIXED: no strict filter for liquidity
+      fetchTxs(ROUTER, key),
+      fetchTxs(LIQUIDITY, key)
     ]);
 
-    // Get NEMESI token transfers
+    // Get NEMESI volume
     let tokenTxs = [];
     let page = 1;
     while (true) {
-      const url = `${BASE}?module=account&action=tokentx&contractaddress=${NEMESI_CA}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
+      const url = `${BASE}&module=account&action=tokentx&contractaddress=${NEMESI_CA}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
       const r = await fetch(url);
       const json = await r.json();
       if (json.status !== '1' || !Array.isArray(json.result)) break;
@@ -58,7 +58,6 @@ module.exports = async function handler(req, res) {
       await new Promise(r => setTimeout(r, 250));
     }
 
-    // FIXED: decimals = 6
     const volumeByHash = {};
     for (const tx of tokenTxs) {
       const val = parseFloat(tx.value) / 1e6;
