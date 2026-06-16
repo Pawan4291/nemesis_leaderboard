@@ -14,29 +14,44 @@ module.exports = async function handler(req, res) {
   }
 
   const key = process.env.ETHERSCAN_API_KEY || '';
-  const apikey = key ? '&apikey=' + key : '';
+  if (!key) return res.status(500).json({ error: 'Missing ETHERSCAN_API_KEY' });
 
   try {
-   const url = `${BASE}&module=account&action=tokentx&contractaddress=${NEMESI_CA}&address=${ROUTER}&page=1&offset=10000&sort=asc${apikey}`;
-    const r = await fetch(url);
-    const json = await r.json();
-    const txs = Array.isArray(json.result) ? json.result : [];
+    let txs = [];
+    let page = 1;
+    while (true) {
+      const url = `${BASE}&module=account&action=tokentx&contractaddress=${NEMESI_CA}&address=${ROUTER}&page=${page}&offset=10000&sort=asc&apikey=${key}`;
+      const r = await fetch(url);
+      const json = await r.json();
+      if (json.status !== '1' || !Array.isArray(json.result)) break;
+      txs = txs.concat(json.result);
+      if (json.result.length < 10000) break;
+      page++;
+      await new Promise(r => setTimeout(r, 250));
+    }
 
+    const router = ROUTER.toLowerCase();
     const traders = {};
-    txs.forEach(tx => {
+
+    for (const tx of txs) {
       const from = tx.from.toLowerCase();
-      const router = ROUTER.toLowerCase();
       const user = from === router ? tx.to.toLowerCase() : from;
+      if (user === router) continue;
+
       const val = parseFloat(tx.value) / 1e18;
       const ts = parseInt(tx.timeStamp);
-      if (!traders[user]) traders[user] = { address: user, volume: 0, swaps: 0, lastSwap: 0, firstSwap: Infinity };
+
+      if (!traders[user]) {
+        traders[user] = { address: user, volume: 0, swaps: 0, lastSwap: 0, firstSwap: ts };
+      }
       traders[user].volume += val;
       traders[user].swaps += 1;
       if (ts > traders[user].lastSwap) traders[user].lastSwap = ts;
       if (ts < traders[user].firstSwap) traders[user].firstSwap = ts;
-    });
+    }
 
     const list = Object.values(traders).sort((a, b) => b.volume - a.volume);
+
     cache = {
       traders: list,
       totalVolume: list.reduce((s, t) => s + t.volume, 0),
@@ -45,7 +60,9 @@ module.exports = async function handler(req, res) {
       fetchedAt: now
     };
     cacheTime = now;
+
     return res.json({ ...cache, cached: false });
+
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
